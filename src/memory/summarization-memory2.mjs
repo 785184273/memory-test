@@ -3,6 +3,8 @@ import { AIMessage, HumanMessage, getBufferString, SystemMessage } from '@langch
 import { ChatOpenAI } from '@langchain/openai'
 import { InMemoryChatMessageHistory } from '@langchain/core/chat_history'
 import path from 'path'
+import { getEncoding } from 'js-tiktoken'
+import { count } from 'console'
 
 const __dirname = import.meta.dirname
 
@@ -18,9 +20,26 @@ const model = new ChatOpenAI({
   }
 })
 
+const tiktoken = getEncoding('cl100k_base')
+
+// 获取messages的总token数
+const countTokens = (messages) => {
+  return messages.reduce((sum, message) => {
+    const content = typeof message.content === 'string'
+      ? message.content
+      : JSON.stringify(message.content)
+
+    sum += tiktoken.encode(content).length
+    return sum
+  }, 0)
+}
+
 const summarizationMemoryDemo = async () => {
   const history = new InMemoryChatMessageHistory()
-  const maxMessages = 6 // 超过 6 条消息时触发总结
+
+  const maxTokens = 200 // 超过200tokens进行汇总
+  const keepRecentTokens = 80 // 保留最近消息的token数量
+
   const messages = [
     { type: 'human', content: '我想学做红烧肉，你能教我吗？' },
     { type: 'ai', content: '当然可以！红烧肉是一道经典的中式菜肴。首先需要准备五花肉、冰糖、生抽、老抽、料酒等材料。' },
@@ -43,30 +62,51 @@ const summarizationMemoryDemo = async () => {
     )
   }
 
-  const inMemoMessages = await history.getMessages()
-  if (inMemoMessages.length > 6) {
-    const keepRecent = 2 // 保留最近两条
+  const allMessages = await history.getMessages()
 
-    // 最近两条message
-    const recentMessages = inMemoMessages.slice(-keepRecent)
-    // 需要汇总的message
-    const messagesToSummarize = inMemoMessages.slice(0, -keepRecent)
+  // 所有消息的token数
+  const allMessageTokens = countTokens(allMessages)
 
-    console.log("\n💡 历史消息过多，开始总结...");
-    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length}`);
-    console.log(`📝 将被保留的消息数量: ${recentMessages.length}`);
+  // 如果所有消息列表的tokens大于等于maxtoken，则需要汇总
+  if (allMessageTokens >= maxTokens) {
+    // 最近的messages
+    const recentMessages = []
+    // 最近的message总的token数
+    let recentTokens = 0
 
-    // 清空历史消息
+    // 从后往前循环，比对token
+    for (let i = allMessages.length - 1; i >= 0; --i) {
+      const message = allMessages[i]
+      const tokens = countTokens([message])
+      if (tokens + recentTokens <= keepRecentTokens) {
+        recentMessages.unshift(message)
+        recentTokens += tokens
+      } else {
+        break
+      }
+    }
+
+    // 需要汇总的messages
+    const messagesToSummarize = allMessages.slice(0, allMessages.length - recentMessages.length)
+
+    // 需要汇总的message总token数
+    const summarizeTokens = countTokens(messagesToSummarize)
+
+    // 清除所有messages
     await history.clear()
-    // 只保留最近的消息
+    // 将最近的message添加到内存中
     await history.addMessages(recentMessages)
 
-    const allMessages = await history.getMessages()
+    console.log("\n💡 Token 数量超过阈值，开始总结...");
+    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length} (${summarizeTokens} tokens)`);
+    console.log(`📝 将被保留的消息数量: ${recentMessages.length} (${recentTokens} tokens)`);
+
+    const _allMessages = await history.getMessages()
     // 汇总的消息内容
     const summarizeContent = await summarizeHistory(messagesToSummarize)
 
     console.log(`保留的消息：`)
-    allMessages.forEach((message, index) => {
+    _allMessages.forEach((message, index) => {
       const type = message.type === 'human'
         ? '用户'
         : 'AI'
