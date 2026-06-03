@@ -1,0 +1,95 @@
+import dotenv from 'dotenv'
+import { AIMessage, HumanMessage, getBufferString, SystemMessage } from '@langchain/core/messages'
+import { ChatOpenAI } from '@langchain/openai'
+import { InMemoryChatMessageHistory } from '@langchain/core/chat_history'
+import path from 'path'
+
+const __dirname = import.meta.dirname
+
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env')
+})
+
+const model = new ChatOpenAI({
+  apiKey: process.env.OPEN_AI_API_KEY,
+  model: process.env.OPEN_AI_MODEL,
+  configuration: {
+    baseURL: process.env.OPEN_AI_BASE_URL
+  }
+})
+
+const summarizationMemoryDemo = async () => {
+  const history = new InMemoryChatMessageHistory()
+  const maxMessages = 6 // 超过 6 条消息时触发总结
+  const messages = [
+    { type: 'human', content: '我想学做红烧肉，你能教我吗？' },
+    { type: 'ai', content: '当然可以！红烧肉是一道经典的中式菜肴。首先需要准备五花肉、冰糖、生抽、老抽、料酒等材料。' },
+    { type: 'human', content: '五花肉需要切多大块？' },
+    { type: 'ai', content: '建议切成3-4厘米见方的块，这样既容易入味，口感也更好。切好后可以用开水焯一下去除血沫。' },
+    { type: 'human', content: '炒糖色的时候有什么技巧吗？' },
+    { type: 'ai', content: '炒糖色是关键步骤。用小火慢慢炒，等冰糖完全融化变成焦糖色，冒小泡时就可以下肉了。注意不要炒过头，否则会发苦。' },
+    { type: 'human', content: '需要炖多长时间？' },
+    { type: 'ai', content: '一般需要炖40-60分钟，用小火慢炖，直到肉变得软糯入味。可以用筷子戳一下，能轻松戳透就说明好了。' },
+    { type: 'human', content: '最后收汁的时候要注意什么？' },
+    { type: 'ai', content: '收汁时要用大火，不断翻动，让汤汁均匀包裹在肉块上。看到汤汁变得浓稠，颜色红亮就可以出锅了。' },
+  ]
+
+  // 将消息添加到内存中去
+  for (const message of messages) {
+    history.addMessage(
+      message.type === 'human'
+        ? new HumanMessage(message.content)
+        : new AIMessage(message.content)
+    )
+  }
+
+  const inMemoMessages = await history.getMessages()
+  if (inMemoMessages.length > 6) {
+    const keepRecent = 2 // 保留最近两条
+
+    // 最近两条message
+    const recentMessages = inMemoMessages.slice(-keepRecent)
+    // 需要汇总的message
+    const messagesToSummarize = inMemoMessages.slice(0, -keepRecent)
+
+    // 清空历史消息
+    await history.clear()
+    // 只保留最近的消息
+    await history.addMessages(recentMessages)
+
+    const allMessages = await history.getMessages()
+
+    console.log('开始汇总')
+    // 汇总的消息内容
+    const summarizeContent = await summarizeHistory(messagesToSummarize)
+
+    console.log(`保留的消息数量：${allMessages.length}`)
+    console.log(`保留的消息：`)
+    allMessages.forEach((message, index) => {
+      const type = message.type === 'human'
+        ? '用户'
+        : 'AI'
+      console.log(`[${type}]: ${message.content}`)
+    })
+    console.log(`/n汇总消息内容: ${summarizeContent}`)
+  }
+}
+
+// 汇总消息
+const summarizeHistory = async (messages) => {
+  const summarizeContent = getBufferString(messages, '用户', 'AI')
+
+  const prompt = `
+    请总结以下对话的核心内容，保留重要信息，帮我汇总。
+    对话信息：${summarizeContent}
+    汇总: 
+  `
+  const _messages = [
+    new SystemMessage(prompt)
+  ]
+
+  const res = await model.invoke(_messages)
+  return res.content
+}
+
+summarizationMemoryDemo().catch(console.error)
