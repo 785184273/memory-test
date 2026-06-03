@@ -44,7 +44,7 @@ const summarizationMemoryDemo = async () => {
   }
 
   const inMemoMessages = await history.getMessages()
-  if (inMemoMessages.length > 6) {
+  if (inMemoMessages.length > maxMessages) {
     const keepRecent = 2 // 保留最近两条
 
     // 最近两条message
@@ -52,9 +52,9 @@ const summarizationMemoryDemo = async () => {
     // 需要汇总的message
     const messagesToSummarize = inMemoMessages.slice(0, -keepRecent)
 
-    console.log("\n💡 历史消息过多，开始总结...");
-    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length}`);
-    console.log(`📝 将被保留的消息数量: ${recentMessages.length}`);
+    console.log("\n💡 历史消息过多，开始总结...")
+    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length}`)
+    console.log(`📝 将被保留的消息数量: ${recentMessages.length}`)
 
     // 清空历史消息
     await history.clear()

@@ -4,7 +4,6 @@ import { ChatOpenAI } from '@langchain/openai'
 import { InMemoryChatMessageHistory } from '@langchain/core/chat_history'
 import path from 'path'
 import { getEncoding } from 'js-tiktoken'
-import { count } from 'console'
 
 const __dirname = import.meta.dirname
 
@@ -97,9 +96,9 @@ const summarizationMemoryDemo = async () => {
     // 将最近的message添加到内存中
     await history.addMessages(recentMessages)
 
-    console.log("\n💡 Token 数量超过阈值，开始总结...");
-    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length} (${summarizeTokens} tokens)`);
-    console.log(`📝 将被保留的消息数量: ${recentMessages.length} (${recentTokens} tokens)`);
+    console.log("\n💡 Token 数量超过阈值，开始总结...")
+    console.log(`📝 将被总结的消息数量: ${messagesToSummarize.length} (${summarizeTokens} tokens)`)
+    console.log(`📝 将被保留的消息数量: ${recentMessages.length} (${recentTokens} tokens)`)
 
     const _allMessages = await history.getMessages()
     // 汇总的消息内容
