@@ -148,6 +148,7 @@ const main = async () => {
           data
         })
         console.log(`💾 已保存到 Milvus 向量数据库`)
+        console.log(`助手: ${response.content}`);
       } catch (err) {
         throw new Error(`保存到向量数据库报错: ${err.message}`)
       }
